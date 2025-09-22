@@ -40,7 +40,7 @@ jobs:
     - name: Install jsonwebtoken
       run: npm install jsonwebtoken
 
-    # Create a script to generate JWT
+    # Create a script to generate JWT and write it to a file
     - name: Create JWT generation script
       run: |
         cat << 'EOF' > generate-jwt.js
@@ -59,7 +59,9 @@ jobs:
         };
 
         const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-        console.log('JWT:', token);
+
+        // Write JWT to file
+        fs.writeFileSync('signed-jwt.txt', token);
         EOF
 
     # Generate the JWT using the secret
@@ -68,8 +70,9 @@ jobs:
         JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
       run: node generate-jwt.js
 
+    # Upload the signed JWT as artifact
     - name: Upload signed JWT as artifact
       uses: actions/upload-artifact@v4
       with:
         name: signed-jwt
-        path: signed-jwt.txt  
+        path: signed-jwt.txt
