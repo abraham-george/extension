@@ -22,19 +22,24 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
 
+    # Upload dist as artifact
     - name: Upload dist folder as artifact
       uses: actions/upload-artifact@v4
       with:
         name: dist-folder
         path: dist/
+
+    # Download dist folder artifact for packaging
     - name: Download dist folder artifact
       uses: actions/download-artifact@v5
       with:
         name: dist-folder
         path: downloaded-dist
+
     - name: List contents of downloaded dist folder
       run: ls -lR downloaded-dist
 
+    # Install jsonwebtoken for JWT creation
     - name: Install jsonwebtoken
       run: npm install jsonwebtoken
 
@@ -66,7 +71,7 @@ jobs:
         name: signed-jwt
         path: signed-jwt.txt
 
-    # Make curl request with JWT to get authToken
+    # Get authToken from API using JWT
     - name: Retrieve authToken using JWT
       run: |
         jwt=$(cat signed-jwt.txt)
@@ -82,3 +87,60 @@ jobs:
       with:
         name: auth-response
         path: auth-response.json
+
+    # Zip the dist folder
+    - name: Zip dist folder
+      run: |
+        cd downloaded-dist
+        zip -r ../dist.zip .
+        cd ..
+        ls -lh dist.zip
+
+    # Convert dist.zip to base64
+    - name: Convert dist.zip to base64
+      run: |
+        base64 dist.zip > dist.zip.base64
+        head dist.zip.base64
+
+    # Extract USERSESSION token from authToken response
+    - name: Extract USERSESSION token
+      run: |
+        jq -r .token auth-response.json > usersession.txt
+        cat usersession.txt
+
+    # Make import API call to EMPackages
+    - name: Import EMPackages via API
+      env:
+        USERSESSION: $(cat usersession.txt)
+      run: |
+        PACKAGE_CONTENT=$(cat dist.zip.base64)
+        USERSESSION=$(cat usersession.txt)
+        curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
+          -H "accept: application/json" \
+          -H "USERSESSION: $USERSESSION" \
+          -H "API_VERSION: 1" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "name": "ExtensionCustomImport",
+                "packageContent": "'"$PACKAGE_CONTENT"'",
+                "importType": "CustomImport",
+                "attributes": {
+                  "customImportAttributes": {
+                    "itemName": "SampleExtensionName",
+                    "itemType": "BrowserExtension",
+                    "extensionAttributes": {
+                      "extensionType": "Console",
+                      "extensionInitFile": "dist/ciExtension/index.html",
+                      "notes": "This is a test comment"
+                    }
+                  }
+                }
+              }' \
+          -o import-response.json
+
+    # Upload the import response
+    - name: Upload import response
+      uses: actions/upload-artifact@v4
+      with:
+        name: import-response
+        path: import-response.json
