@@ -22,7 +22,6 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
 
-    # Upload, download, and log dist folder contents
     - name: Upload dist folder as artifact
       uses: actions/upload-artifact@v4
       with:
@@ -36,20 +35,16 @@ jobs:
     - name: List contents of downloaded dist folder
       run: ls -lR downloaded-dist
 
-    # Install jsonwebtoken for JWT creation
     - name: Install jsonwebtoken
       run: npm install jsonwebtoken
 
-    # Create a script to generate JWT and write it to a file
+    # Generate JWT and save to file
     - name: Create JWT generation script
       run: |
         cat << 'EOF' > generate-jwt.js
         const fs = require('fs');
         const jwt = require('jsonwebtoken');
-
-        // Read private key from environment variable
         const privateKey = process.env.JWT_PRIVATE_KEY;
-
         const payload = {
           sub: 'ageorge_test',
           iss: 'emPublicApi',
@@ -57,22 +52,33 @@ jobs:
           jti: '1234',
           aud: '/authToken'
         };
-
         const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-
-        // Write JWT to file
         fs.writeFileSync('signed-jwt.txt', token);
         EOF
-
-    # Generate the JWT using the secret
     - name: Generate JWT
       env:
         JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
       run: node generate-jwt.js
 
-    # Upload the signed JWT as artifact
     - name: Upload signed JWT as artifact
       uses: actions/upload-artifact@v4
       with:
         name: signed-jwt
         path: signed-jwt.txt
+
+    # Make curl request with JWT to get authToken
+    - name: Retrieve authToken using JWT
+      run: |
+        jwt=$(cat signed-jwt.txt)
+        curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/authentication/authToken" \
+          -H "accept: application/json" \
+          -H "Authorization: Bearer $jwt" \
+          -H "interfaceUrl: https://help.linkedin.com/cgi-bin/linkedin.cfg" \
+          -o auth-response.json
+
+    # Upload the response as artifact
+    - name: Upload authToken response
+      uses: actions/upload-artifact@v4
+      with:
+        name: auth-response
+        path: auth-response.json
