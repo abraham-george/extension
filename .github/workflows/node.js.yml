@@ -3,7 +3,7 @@ name: Node.js CI
 on:
   push:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -13,135 +13,156 @@ jobs:
         node-version: [22.x]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build --if-present
 
-    # Upload dist as artifact
-    - name: Upload dist folder as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-folder
-        path: dist/
+      # Upload dist as artifact
+      - name: Upload dist folder as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-folder
+          path: dist/
 
-    # Download dist folder artifact for packaging
-    - name: Download dist folder artifact
-      uses: actions/download-artifact@v5
-      with:
-        name: dist-folder
-        path: downloaded-dist
+      # Download dist folder artifact for packaging
+      - name: Download dist folder artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: dist-folder
+          path: downloaded-dist
 
-    - name: List contents of downloaded dist folder
-      run: ls -lR downloaded-dist
+      - name: List contents of downloaded dist folder
+        run: ls -lR downloaded-dist
 
-    # Install jsonwebtoken for JWT creation
-    - name: Install jsonwebtoken
-      run: npm install jsonwebtoken
+      # Install jsonwebtoken for JWT creation
+      - name: Install jsonwebtoken
+        run: npm install jsonwebtoken
 
-    # Generate JWT and save to file
-    - name: Create JWT generation script
-      run: |
-        cat << 'EOF' > generate-jwt.js
-        const fs = require('fs');
-        const jwt = require('jsonwebtoken');
-        const privateKey = process.env.JWT_PRIVATE_KEY;
-        const payload = {
-          sub: 'ageorge_test',
-          iss: 'emPublicApi',
-          exp: 1761149932,
-          jti: '1234',
-          aud: '/authToken'
-        };
-        const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-        fs.writeFileSync('signed-jwt.txt', token);
-        EOF
-    - name: Generate JWT
-      env:
-        JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
-      run: node generate-jwt.js
+      # Generate JWT and save to file
+      - name: Create JWT generation script
+        run: |
+          cat << 'EOF' > generate-jwt.js
+          const fs = require('fs');
+          const jwt = require('jsonwebtoken');
+          const privateKey = process.env.JWT_PRIVATE_KEY;
+          const payload = {
+            sub: 'ageorge_test',
+            iss: 'emPublicApi',
+            exp: 1761149932,
+            jti: '1234',
+            aud: '/authToken'
+          };
+          const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+          fs.writeFileSync('signed-jwt.txt', token);
+          EOF
+      - name: Generate JWT
+        env:
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+        run: node generate-jwt.js
 
-    - name: Upload signed JWT as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: signed-jwt
-        path: signed-jwt.txt
+      - name: Upload signed JWT as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-jwt
+          path: signed-jwt.txt
 
-    # Get authToken from API using JWT
-    - name: Retrieve authToken using JWT
-      run: |
-        jwt=$(cat signed-jwt.txt)
-        curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/authentication/authToken" \
-          -H "accept: application/json" \
-          -H "Authorization: Bearer $jwt" \
-          -H "interfaceUrl: https://help.linkedin.com/cgi-bin/linkedin.cfg" \
-          -o auth-response.json
+      # Get authToken from API using JWT
+      - name: Retrieve authToken using JWT
+        run: |
+          jwt=$(cat signed-jwt.txt)
+          curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/authentication/authToken" \
+            -H "accept: application/json" \
+            -H "Authorization: Bearer $jwt" \
+            -H "interfaceUrl: https://help.linkedin.com/cgi-bin/linkedin.cfg" \
+            -o auth-response.json
 
-    # Upload the response as artifact
-    - name: Upload authToken response
-      uses: actions/upload-artifact@v4
-      with:
-        name: auth-response
-        path: auth-response.json
+      # Upload the response as artifact
+      - name: Upload authToken response
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-response
+          path: auth-response.json
 
-    # Zip the dist folder
-    - name: Zip dist folder
-      run: |
-        mv downloaded-dist dist
-        zip -r dist.zip dist/
-        ls -lh dist.zip
+      # Zip dist folder and convert to base64 in one step
+      - name: Zip dist folder and convert to base64
+        run: |
+          mv downloaded-dist dist
+          echo "Contents of dist folder before zipping:"
+          ls -lR dist/
+          echo "Creating zip and base64..."
+          zip -r - dist/ | base64 > extension_base64.txt
+          echo "Base64 file size: $(wc -c < extension_base64.txt) bytes"
+          echo "Line count in base64 file: $(wc -l < extension_base64.txt)"
+          echo "First 100 characters of base64:"
+          head -c 100 extension_base64.txt
+          echo ""
+          echo "Last 100 characters of base64:"
+          tail -c 100 extension_base64.txt
+          echo ""
+          echo "Creating separate zip file for comparison:"
+          zip -r dist.zip dist/
+          echo "Separate zip file size: $(wc -c < dist.zip) bytes"
+          echo "Base64 of separate zip (first 100 chars):"
+          base64 dist.zip | head -c 100
+          echo ""
 
-    # Convert dist.zip to base64
-    - name: Convert dist.zip to base64
-      run: |
-        base64 dist.zip > dist.zip.base64
-        echo "Base64 file size: $(wc -c < dist.zip.base64) bytes"
-        echo "Original zip size: $(wc -c < dist.zip) bytes" 
-        echo "First 100 characters of base64:"
-        head -c 100 dist.zip.base64
-        echo ""
+      # Download auth response artifact before extracting token
+      - name: Download auth response artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: auth-response
+          path: ./
 
-    # Extract USERSESSION token from authToken response
-    - name: Extract USERSESSION token
-      run: |
-        jq -r .token auth-response.json > usersession.txt
-        cat usersession.txt
+      # Extract USERSESSION token from authToken response
+      - name: Extract USERSESSION token
+        run: |
+          echo "Checking if auth-response.json exists:"
+          ls -la auth-response.json
+          echo "Contents of auth-response.json:"
+          cat auth-response.json
+          echo "Extracting token:"
+          jq -r .token auth-response.json > usersession.txt
+          echo "USERSESSION token:"
+          cat usersession.txt
 
-    # Make import API call to EMPackages
-    - name: Import EMPackages via API
-      run: |
-        PACKAGE_CONTENT=$(cat dist.zip.base64)
-        USERSESSION=$(cat usersession.txt)
-        curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
-          -H "accept: application/json" \
-          -H "USERSESSION: $USERSESSION" \
-          -H "API_VERSION: 1" \
-          -H "Content-Type: application/json" \
-          -d '{
-                "name": "ExtensionCustomImport",
-                "packageContent": "'"$PACKAGE_CONTENT"'",
-                "importType": "CustomImport",
-                "attributes": {
-                  "customImportAttributes": {
-                    "itemName": "SampleExtensionName1",
-                    "itemType": "BrowserExtension",
-                    "extensionAttributes": {
-                      "extensionType": "Console",
-                      "extensionInitFile": "dist/ciExtension/index.html",
-                      "notes": "This is a test comment"
+      # Make import API call to EMPackages
+      - name: Import EMPackages via API
+        run: |
+          PACKAGE_CONTENT=$(cat extension_base64.txt)
+          USERSESSION=$(cat usersession.txt)
+          echo "Package content length: ${#PACKAGE_CONTENT}"
+          echo "USERSESSION: $USERSESSION"
+          curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
+            -H "accept: application/json" \
+            -H "USERSESSION: $USERSESSION" \
+            -H "API_VERSION: 1" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "name": "ExtensionCustomImport",
+                  "packageContent": "'"$PACKAGE_CONTENT"'",
+                  "importType": "CustomImport",
+                  "attributes": {
+                    "customImportAttributes": {
+                      "itemName": "SampleExtensionName1",
+                      "itemType": "BrowserExtension",
+                      "extensionAttributes": {
+                        "extensionType": "Console",
+                        "extensionInitFile": "dist/ciExtension/index.html",
+                        "notes": "This is a test comment"
+                      }
                     }
                   }
-                }
-              }' \
-          -o import-response.json
+                }' \
+            -o import-response.json
 
-    # Upload the import response
-    - name: Upload import response
-      uses: actions/upload-artifact@v4
-      with:
-        name: import-response
-        path: import-response.json
+      # Upload the import response
+      - name: Upload import response
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-response
+          path: import-response.json
