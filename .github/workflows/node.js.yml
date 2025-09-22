@@ -26,6 +26,24 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    #- run: npm ci
+    - run: npm ci
     - run: npm run build --if-present
     #- run: npm test
+
+    # Upload the dist folder as an artifact
+    - name: Upload dist folder as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-folder
+        path: dist/
+
+    # Download the dist folder artifact
+    - name: Download dist folder artifact
+      uses: actions/download-artifact@v5
+      with:
+        name: dist-folder
+        path: downloaded-dist
+
+    # Log the contents of the downloaded dist folder
+    - name: List contents of downloaded dist folder
+      run: ls -lR downloaded-dist
