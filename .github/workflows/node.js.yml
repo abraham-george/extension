@@ -34,10 +34,10 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: dist-folder
-          path: downloaded-dist
+          path: dist
 
       - name: List contents of downloaded dist folder
-        run: ls -lR downloaded-dist
+        run: ls -lR dist
 
       # Install jsonwebtoken for JWT creation
       - name: Install jsonwebtoken
@@ -91,7 +91,6 @@ jobs:
       # Zip dist folder and convert to base64 in one step
       - name: Zip dist folder and convert to base64
         run: |
-          mv downloaded-dist dist
           echo "Contents of dist folder before zipping:"
           ls -lR dist/
           echo "Creating zip and base64..."
