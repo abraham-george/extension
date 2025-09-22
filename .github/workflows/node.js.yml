@@ -88,26 +88,14 @@ jobs:
           name: auth-response
           path: auth-response.json
 
-      # Zip dist folder and convert to base64 in one step
-      - name: Zip dist folder and convert to base64
+      # Use hardcoded base64 value for testing
+      - name: Create hardcoded base64 file
         run: |
-          echo "Contents of dist folder before zipping:"
-          ls -lR dist/
-          echo "Creating zip and base64..."
-          zip -r - dist/ | base64 > extension_base64.txt
-          echo "Base64 file size: $(wc -c < extension_base64.txt) bytes"
-          echo "Line count in base64 file: $(wc -l < extension_base64.txt)"
-          echo "First 100 characters of base64:"
+          echo "Using hardcoded base64 value for testing..."
+          echo "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" > extension_base64.txt
+          echo "Hardcoded base64 file size: $(wc -c < extension_base64.txt) bytes"
+          echo "First 100 characters of hardcoded base64:"
           head -c 100 extension_base64.txt
-          echo ""
-          echo "Last 100 characters of base64:"
-          tail -c 100 extension_base64.txt
-          echo ""
-          echo "Creating separate zip file for comparison:"
-          zip -r dist.zip dist/
-          echo "Separate zip file size: $(wc -c < dist.zip) bytes"
-          echo "Base64 of separate zip (first 100 chars):"
-          base64 dist.zip | head -c 100
           echo ""
 
       # Download auth response artifact before extracting token
