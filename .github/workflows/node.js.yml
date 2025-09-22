@@ -91,16 +91,19 @@ jobs:
     # Zip the dist folder
     - name: Zip dist folder
       run: |
-        cd downloaded-dist
-        zip -r ../dist.zip .
-        cd ..
+        mv downloaded-dist dist
+        zip -r dist.zip dist/
         ls -lh dist.zip
 
     # Convert dist.zip to base64
     - name: Convert dist.zip to base64
       run: |
         base64 dist.zip > dist.zip.base64
-        head dist.zip.base64
+        echo "Base64 file size: $(wc -c < dist.zip.base64) bytes"
+        echo "Original zip size: $(wc -c < dist.zip) bytes" 
+        echo "First 100 characters of base64:"
+        head -c 100 dist.zip.base64
+        echo ""
 
     # Extract USERSESSION token from authToken response
     - name: Extract USERSESSION token
@@ -110,8 +113,6 @@ jobs:
 
     # Make import API call to EMPackages
     - name: Import EMPackages via API
-      env:
-        USERSESSION: $(cat usersession.txt)
       run: |
         PACKAGE_CONTENT=$(cat dist.zip.base64)
         USERSESSION=$(cat usersession.txt)
@@ -126,7 +127,7 @@ jobs:
                 "importType": "CustomImport",
                 "attributes": {
                   "customImportAttributes": {
-                    "itemName": "SampleExtensionName",
+                    "itemName": "SampleExtensionName1",
                     "itemType": "BrowserExtension",
                     "extensionAttributes": {
                       "extensionType": "Console",
