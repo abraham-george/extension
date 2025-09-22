@@ -162,11 +162,8 @@ jobs:
           echo "  USERSESSION: $USERSESSION"
           echo "  API_VERSION: 1"
           echo "  Content-Type: application/json"
-          echo "JSON Payload (first 500 chars):"
-          echo "$JSON_PAYLOAD" | head -c 500
-          echo "..."
-          echo "JSON Payload (last 200 chars):"
-          echo "$JSON_PAYLOAD" | tail -c 200
+          echo "JSON Payload"
+          echo "$JSON_PAYLOAD"
           echo "=========================="
 
           curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
