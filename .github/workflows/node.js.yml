@@ -136,27 +136,45 @@ jobs:
           USERSESSION=$(cat usersession.txt)
           echo "Package content length: ${#PACKAGE_CONTENT}"
           echo "USERSESSION: $USERSESSION"
+
+          # Create JSON payload
+          JSON_PAYLOAD='{
+            "name": "ExtensionCustomImport",
+            "packageContent": "'"$PACKAGE_CONTENT"'",
+            "importType": "CustomImport",
+            "attributes": {
+              "customImportAttributes": {
+                "itemName": "SampleExtensionName1",
+                "itemType": "BrowserExtension",
+                "extensionAttributes": {
+                  "extensionType": "Console",
+                  "extensionInitFile": "dist/ciExtension/index.html",
+                  "notes": "This is a test comment"
+                }
+              }
+            }
+          }'
+
+          echo "=== CURL COMMAND DEBUG ==="
+          echo "URL: https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages"
+          echo "Headers:"
+          echo "  accept: application/json"
+          echo "  USERSESSION: $USERSESSION"
+          echo "  API_VERSION: 1"
+          echo "  Content-Type: application/json"
+          echo "JSON Payload (first 500 chars):"
+          echo "$JSON_PAYLOAD" | head -c 500
+          echo "..."
+          echo "JSON Payload (last 200 chars):"
+          echo "$JSON_PAYLOAD" | tail -c 200
+          echo "=========================="
+
           curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
             -H "accept: application/json" \
             -H "USERSESSION: $USERSESSION" \
             -H "API_VERSION: 1" \
             -H "Content-Type: application/json" \
-            -d '{
-                  "name": "ExtensionCustomImport",
-                  "packageContent": "'"$PACKAGE_CONTENT"'",
-                  "importType": "CustomImport",
-                  "attributes": {
-                    "customImportAttributes": {
-                      "itemName": "SampleExtensionName1",
-                      "itemType": "BrowserExtension",
-                      "extensionAttributes": {
-                        "extensionType": "Console",
-                        "extensionInitFile": "dist/ciExtension/index.html",
-                        "notes": "This is a test comment"
-                      }
-                    }
-                  }
-                }' \
+            -d "$JSON_PAYLOAD" \
             -o import-response.json
 
       # Upload the import response
