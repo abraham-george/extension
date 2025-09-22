@@ -1,23 +1,16 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
 name: Node.js CI
 
 on:
   push:
-    #branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
     - uses: actions/checkout@v4
@@ -28,22 +21,49 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build --if-present
-    #- run: npm test
 
-    # Upload the dist folder as an artifact
+    # Upload, download, and log dist folder contents
     - name: Upload dist folder as artifact
       uses: actions/upload-artifact@v4
       with:
         name: dist-folder
         path: dist/
-
-    # Download the dist folder artifact
     - name: Download dist folder artifact
       uses: actions/download-artifact@v5
       with:
         name: dist-folder
         path: downloaded-dist
-
-    # Log the contents of the downloaded dist folder
     - name: List contents of downloaded dist folder
       run: ls -lR downloaded-dist
+
+    # Install jsonwebtoken for JWT creation
+    - name: Install jsonwebtoken
+      run: npm install jsonwebtoken
+
+    # Create a script to generate JWT
+    - name: Create JWT generation script
+      run: |
+        cat << 'EOF' > generate-jwt.js
+        const fs = require('fs');
+        const jwt = require('jsonwebtoken');
+
+        // Read private key from environment variable
+        const privateKey = process.env.JWT_PRIVATE_KEY;
+
+        const payload = {
+          sub: 'ageorge_test',
+          iss: 'emPublicApi',
+          exp: 1761149932,
+          jti: '1234',
+          aud: '/authToken'
+        };
+
+        const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+        console.log('JWT:', token);
+        EOF
+
+    # Generate the JWT using the secret
+    - name: Generate JWT
+      env:
+        JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+      run: node generate-jwt.js
