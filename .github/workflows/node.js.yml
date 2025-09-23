@@ -22,6 +22,19 @@ jobs:
       - run: npm ci
       - run: npm run build --if-present
 
+      - name: Create reproducible base64 from dist
+        run: |
+          export TZ=UTC
+          export LC_ALL=C
+          find dist/ -type f -exec touch -t 202301010000 {} \;
+          zip -rX --compression-method store --quiet extension.zip dist/
+          base64 extension.zip > extension_base64.txt
+          
+          echo "Generated base64 file size: $(wc -c < extension_base64.txt) bytes"
+          echo "Entire generated base64:"
+          cat extension_base64.txt
+          echo ""
+
       # Create base64 from dist folder immediately after build
       - name: Create base64 from dist folder
         run: |
