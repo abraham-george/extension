@@ -180,10 +180,10 @@ jobs:
           path: import-response.json
 
       # Wait before proceeding with PATCH request
-      - name: Wait 15 seconds before PATCH request
+      - name: Wait 16 seconds before PATCH request
         run: |
-          echo "Waiting 15 seconds before proceeding with PATCH request..."
-          sleep 15
+          echo "Waiting 16 seconds before proceeding with PATCH request..."
+          sleep 16
           echo "Wait complete, proceeding with PATCH request"
 
       # Extract package ID and perform PATCH import
