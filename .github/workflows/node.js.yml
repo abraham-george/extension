@@ -22,6 +22,27 @@ jobs:
       - run: npm ci
       - run: npm run build --if-present
 
+      # Create base64 from dist folder immediately after build
+      - name: Create base64 from dist folder
+        run: |
+          echo "=== Creating base64 from dist folder ==="
+          echo "Contents of dist folder:"
+          ls -lR dist/
+          echo ""
+          echo "Creating zip and converting to base64..."
+          zip -r - dist/ | base64 > extension_base64.txt
+          echo "Base64 file created:"
+          echo "  Size: $(wc -c < extension_base64.txt) bytes"
+          echo "  Lines: $(wc -l < extension_base64.txt)"
+          echo "  First 100 characters:"
+          head -c 100 extension_base64.txt
+          echo ""
+          echo "=== COMPLETE BASE64 CONTENT ==="
+          cat extension_base64.txt
+          echo ""
+          echo "=== END COMPLETE BASE64 CONTENT ==="
+          echo "=== End base64 creation ==="
+
       # Upload dist as artifact
       - name: Upload dist folder as artifact
         uses: actions/upload-artifact@v4
