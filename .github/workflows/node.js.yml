@@ -118,7 +118,7 @@ jobs:
             "importType": "CustomImport",
             "attributes": {
               "customImportAttributes": {
-                "itemName": "SampleExtensionName5",
+                "itemName": "SampleExtensionName6",
                 "itemType": "BrowserExtension",
                 "extensionAttributes": {
                   "extensionType": "Console",
@@ -154,3 +154,45 @@ jobs:
         with:
           name: import-response
           path: import-response.json
+
+      # Extract package ID and perform PATCH import
+      - name: Complete package import via PATCH
+        run: |
+          USERSESSION=$(cat usersession.txt)
+          echo "Checking import response:"
+          cat import-response.json
+
+          # Extract the package ID from the import response
+          PACKAGE_ID=$(jq -r .id import-response.json)
+          echo "Extracted Package ID: $PACKAGE_ID"
+
+          if [ "$PACKAGE_ID" = "null" ] || [ -z "$PACKAGE_ID" ]; then
+            echo "Error: Could not extract package ID from import response"
+            exit 1
+          fi
+
+          echo "=== PATCH COMMAND DEBUG ==="
+          echo "URL: https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages"
+          echo "Headers:"
+          echo "  accept: application/json"
+          echo "  USERSESSION: $USERSESSION"
+          echo "  API_VERSION: 1"
+          echo "  Content-Type: application/json"
+          echo "Payload: { \"action\": \"import\", \"id\": \"$PACKAGE_ID\" }"
+          echo "=========================="
+
+          # Perform PATCH request to complete the import
+          curl -X PATCH "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
+            -H "accept: application/json" \
+            -H "USERSESSION: $USERSESSION" \
+            -H "API_VERSION: 1" \
+            -H "Content-Type: application/json" \
+            -d "{ \"action\": \"import\", \"id\": \"$PACKAGE_ID\" }" \
+            -o patch-response.json
+
+      # Upload the PATCH response
+      - name: Upload PATCH response
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-response
+          path: patch-response.json
