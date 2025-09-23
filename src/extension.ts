@@ -5,5 +5,5 @@ ORACLE_SERVICE_CLOUD.extension_loader.load(
     appId,
     appVersion,
 ).then(function(extensionProvider: IExtensionProvider) {
-    alert('Extension loaded successfully!');
+    alert('Extension loaded successfully!!');
 })

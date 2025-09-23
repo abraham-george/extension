@@ -1,31 +1,229 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
 name: Node.js CI
 
 on:
   push:
-    #branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    #- run: npm test
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build --if-present
+
+      - name: Create base64 from dist folder
+        run: |
+          export TZ=UTC
+          export LC_ALL=C
+
+          # Dynamically detect extension name from dist folder
+          EXTENSION_NAME=$(ls dist/ | head -1)
+          echo "Detected extension name: $EXTENSION_NAME"
+
+          # Determine environment (dev for non-main branches, prod for main)
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ENVIRONMENT="prod"
+          else
+            ENVIRONMENT="dev"
+          fi
+
+          # Create versioned extension name with run number
+          VERSIONED_NAME="${EXTENSION_NAME}_${ENVIRONMENT}_v${{ github.run_number }}"
+          echo "Versioned extension name: $VERSIONED_NAME"
+
+          # Export variables for use in subsequent steps
+          echo "EXTENSION_NAME=$EXTENSION_NAME" >> $GITHUB_ENV
+          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+          echo "VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+
+          find dist/ -type f -exec touch -t 202301010000 {} \;
+          zip -rX --compression-method store --quiet extension.zip dist/
+          base64 -w 0 extension.zip > extension_base64.txt
+
+          echo "Generated base64 file size: $(wc -c < extension_base64.txt) bytes"
+          echo "Entire generated base64:"
+          cat extension_base64.txt
+          echo ""
+
+      # Install jsonwebtoken for JWT creation
+      - name: Install jsonwebtoken
+        run: npm install jsonwebtoken
+
+      # Generate JWT and save to file
+      - name: Create JWT generation script
+        run: |
+          cat << 'EOF' > generate-jwt.js
+          const fs = require('fs');
+          const jwt = require('jsonwebtoken');
+          const privateKey = process.env.JWT_PRIVATE_KEY;
+          const payload = {
+            sub: 'ageorge_test',
+            iss: 'emPublicApi',
+            exp: 1761149932,
+            jti: '1234',
+            aud: '/authToken'
+          };
+          const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+          fs.writeFileSync('signed-jwt.txt', token);
+          EOF
+      - name: Generate JWT
+        env:
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+        run: node generate-jwt.js
+
+      - name: Upload signed JWT as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-jwt
+          path: signed-jwt.txt
+
+      # Get authToken from API using JWT
+      - name: Retrieve authToken using JWT
+        run: |
+          jwt=$(cat signed-jwt.txt)
+          curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/authentication/authToken" \
+            -H "accept: application/json" \
+            -H "Authorization: Bearer $jwt" \
+            -H "interfaceUrl: https://help.linkedin.com/cgi-bin/linkedin.cfg" \
+            -o auth-response.json
+
+      # Upload the response as artifact
+      - name: Upload authToken response
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-response
+          path: auth-response.json
+
+      # Download auth response artifact before extracting token
+      - name: Download auth response artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: auth-response
+          path: ./
+
+      # Extract USERSESSION token from authToken response
+      - name: Extract USERSESSION token
+        run: |
+          echo "Checking if auth-response.json exists:"
+          ls -la auth-response.json
+          echo "Contents of auth-response.json:"
+          cat auth-response.json
+          echo "Extracting token:"
+          jq -r .token auth-response.json > usersession.txt
+          echo "USERSESSION token:"
+          cat usersession.txt
+
+      # Make import API call to EMPackages
+      - name: Import EMPackages via API
+        run: |
+          PACKAGE_CONTENT=$(cat extension_base64.txt)
+          USERSESSION=$(cat usersession.txt)
+          echo "Package content length: ${#PACKAGE_CONTENT}"
+          echo "USERSESSION: $USERSESSION"
+          echo "Using extension name: $EXTENSION_NAME"
+          echo "Using versioned name: $VERSIONED_NAME"
+          echo "Environment: $ENVIRONMENT"
+
+          # Create JSON payload with dynamic extension name and versioning
+          JSON_PAYLOAD='{
+            "name": "ExtensionCustomImport",
+            "packageContent": "'"$PACKAGE_CONTENT"'",
+            "importType": "CustomImport",
+            "attributes": {
+              "customImportAttributes": {
+                "itemName": "'"$VERSIONED_NAME"'",
+                "itemType": "BrowserExtension",
+                "extensionAttributes": {
+                  "extensionType": "Console",
+                  "extensionInitFile": "dist/'"$EXTENSION_NAME"'/index.html",
+                  "notes": "Auto-generated '"$ENVIRONMENT"' build v${{ github.run_number }} from branch ${{ github.ref_name }}"
+                }
+              }
+            }
+          }'
+
+          echo "=== CURL COMMAND DEBUG ==="
+          echo "URL: https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages"
+          echo "Headers:"
+          echo "  accept: application/json"
+          echo "  USERSESSION: $USERSESSION"
+          echo "  API_VERSION: 1"
+          echo "  Content-Type: application/json"
+          echo "JSON Payload"
+          echo "$JSON_PAYLOAD"
+          echo "=========================="
+
+          curl -X POST "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
+            -H "accept: application/json" \
+            -H "USERSESSION: $USERSESSION" \
+            -H "API_VERSION: 1" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            -o import-response.json
+
+      # Upload the import response
+      - name: Upload import response
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-response
+          path: import-response.json
+
+      # Wait before proceeding with PATCH request
+      - name: Wait 15 seconds before PATCH request
+        run: |
+          echo "Waiting 15 seconds before proceeding with PATCH request..."
+          sleep 15
+          echo "Wait complete, proceeding with PATCH request"
+
+      # Extract package ID and perform PATCH import
+      - name: Complete package import via PATCH
+        run: |
+          USERSESSION=$(cat usersession.txt)
+          echo "Checking import response:"
+          cat import-response.json
+
+          # Extract the package ID from the import response
+          PACKAGE_ID=$(jq -r .id import-response.json)
+          echo "Extracted Package ID: $PACKAGE_ID"
+
+          if [ "$PACKAGE_ID" = "null" ] || [ -z "$PACKAGE_ID" ]; then
+            echo "Error: Could not extract package ID from import response"
+            exit 1
+          fi
+
+          echo "=== PATCH COMMAND DEBUG ==="
+          echo "URL: https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages"
+          echo "Headers:"
+          echo "  accept: application/json"
+          echo "  USERSESSION: $USERSESSION"
+          echo "  API_VERSION: 1"
+          echo "  Content-Type: application/json"
+          echo "Payload: { \"action\": \"import\", \"id\": \"$PACKAGE_ID\" }"
+          echo "=========================="
+
+          # Perform PATCH request to complete the import
+          curl -X PATCH "https://help.linkedin.com/AgentWeb/api/elementmanager/import/EMPackages" \
+            -H "accept: application/json" \
+            -H "USERSESSION: $USERSESSION" \
+            -H "API_VERSION: 1" \
+            -H "Content-Type: application/json" \
+            -d "{ \"action\": \"import\", \"id\": \"$PACKAGE_ID\" }" \
+            -o patch-response.json
+
+      # Upload the PATCH response
+      - name: Upload PATCH response
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-response
+          path: patch-response.json
