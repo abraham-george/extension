@@ -118,7 +118,7 @@ jobs:
             "importType": "CustomImport",
             "attributes": {
               "customImportAttributes": {
-                "itemName": "SampleExtensionName6",
+                "itemName": "SampleExtensionName7",
                 "itemType": "BrowserExtension",
                 "extensionAttributes": {
                   "extensionType": "Console",
