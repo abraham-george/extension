@@ -28,8 +28,8 @@ jobs:
           export LC_ALL=C
           find dist/ -type f -exec touch -t 202301010000 {} \;
           zip -rX --compression-method store --quiet extension.zip dist/
-          base64 extension.zip > extension_base64.txt
-          
+          base64 -w 0 extension.zip > extension_base64.txt
+
           echo "Generated base64 file size: $(wc -c < extension_base64.txt) bytes"
           echo "Entire generated base64:"
           cat extension_base64.txt
@@ -43,7 +43,7 @@ jobs:
           ls -lR dist/
           echo ""
           echo "Creating zip and converting to base64..."
-          zip -r - dist/ | base64 > extension_base64.txt
+          zip -r - dist/ | base64 -w 0 > extension_base64.txt
           echo "Base64 file created:"
           echo "  Size: $(wc -c < extension_base64.txt) bytes"
           echo "  Lines: $(wc -l < extension_base64.txt)"
