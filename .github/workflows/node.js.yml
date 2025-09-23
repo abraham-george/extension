@@ -103,26 +103,6 @@ jobs:
           echo "USERSESSION token:"
           cat usersession.txt
 
-      # Extract extension name and create build counter
-      - name: Set extension parameters
-        run: |
-          # Get the folder name from dist directory
-          EXTENSION_NAME=$(ls dist/ | head -n 1)
-          echo "Detected extension folder: $EXTENSION_NAME"
-          
-          # Create a build counter using GitHub run number and timestamp
-          BUILD_COUNTER="${{ github.run_number }}-$(date +%Y%m%d%H%M%S)"
-          echo "Build counter: $BUILD_COUNTER"
-          
-          # Combine extension name with build counter
-          FULL_EXTENSION_NAME="${EXTENSION_NAME}_${BUILD_COUNTER}"
-          echo "Full extension name: $FULL_EXTENSION_NAME"
-          
-          # Save to environment for next steps
-          echo "EXTENSION_NAME=$EXTENSION_NAME" >> $GITHUB_ENV
-          echo "BUILD_COUNTER=$BUILD_COUNTER" >> $GITHUB_ENV
-          echo "FULL_EXTENSION_NAME=$FULL_EXTENSION_NAME" >> $GITHUB_ENV
-
       # Make import API call to EMPackages
       - name: Import EMPackages via API
         run: |
@@ -130,7 +110,6 @@ jobs:
           USERSESSION=$(cat usersession.txt)
           echo "Package content length: ${#PACKAGE_CONTENT}"
           echo "USERSESSION: $USERSESSION"
-          echo "Using extension name: $FULL_EXTENSION_NAME"
 
           # Create JSON payload
           JSON_PAYLOAD='{
@@ -175,6 +154,13 @@ jobs:
         with:
           name: import-response
           path: import-response.json
+
+      # Wait before proceeding with PATCH request
+      - name: Wait 10 seconds before PATCH request
+        run: |
+          echo "Waiting 10 seconds before proceeding with PATCH request..."
+          sleep 10
+          echo "Wait complete, proceeding with PATCH request"
 
       # Extract package ID and perform PATCH import
       - name: Complete package import via PATCH
