@@ -22,7 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run build --if-present
 
-      - name: Create reproducible base64 from dist
+      - name: Create base64 from dist folder
         run: |
           export TZ=UTC
           export LC_ALL=C
@@ -34,44 +34,6 @@ jobs:
           echo "Entire generated base64:"
           cat extension_base64.txt
           echo ""
-
-      # Create base64 from dist folder immediately after build
-      - name: Create base64 from dist folder
-        run: |
-          echo "=== Creating base64 from dist folder ==="
-          echo "Contents of dist folder:"
-          ls -lR dist/
-          echo ""
-          echo "Creating zip and converting to base64..."
-          zip -r - dist/ | base64 -w 0 > extension_base64.txt
-          echo "Base64 file created:"
-          echo "  Size: $(wc -c < extension_base64.txt) bytes"
-          echo "  Lines: $(wc -l < extension_base64.txt)"
-          echo "  First 100 characters:"
-          head -c 100 extension_base64.txt
-          echo ""
-          echo "=== COMPLETE BASE64 CONTENT ==="
-          cat extension_base64.txt
-          echo ""
-          echo "=== END COMPLETE BASE64 CONTENT ==="
-          echo "=== End base64 creation ==="
-
-      # Upload dist as artifact
-      - name: Upload dist folder as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-folder
-          path: dist/
-
-      # Download dist folder artifact for packaging
-      - name: Download dist folder artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: dist-folder
-          path: dist
-
-      - name: List contents of downloaded dist folder
-        run: ls -lR dist
 
       # Install jsonwebtoken for JWT creation
       - name: Install jsonwebtoken
@@ -121,85 +83,6 @@ jobs:
         with:
           name: auth-response
           path: auth-response.json
-
-      # Generate base64 with comprehensive debugging and comparison
-      - name: Generate and debug base64
-        run: |
-          echo "=== COMPREHENSIVE BASE64 DEBUGGING ==="
-
-          # First, create hardcoded reference
-          echo "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" > reference_base64.txt
-
-          echo "1. Reference (hardcoded) base64 info:"
-          echo "   Size: $(wc -c < reference_base64.txt) bytes"
-          echo "   Lines: $(wc -l < reference_base64.txt)"
-          echo "   MD5: $(md5sum reference_base64.txt | cut -d' ' -f1)"
-
-          echo ""
-          echo "2. Directory contents before zipping:"
-          find dist/ -type f -exec ls -la {} \; | sort
-
-          echo ""
-          echo "3. Testing different zip and base64 methods:"
-
-          # Method 1: Original pipe method
-          echo "   Method 1: zip -r - dist/ | base64"
-          zip -r - dist/ | base64 > method1_base64.txt
-          echo "   Size: $(wc -c < method1_base64.txt) bytes"
-          echo "   Lines: $(wc -l < method1_base64.txt)"
-          echo "   MD5: $(md5sum method1_base64.txt | cut -d' ' -f1)"
-
-          # Method 2: Create zip file first, then base64 with no line breaks
-          echo "   Method 2: zip file first, base64 -w 0"
-          zip -r temp.zip dist/
-          base64 -w 0 temp.zip > method2_base64.txt
-          echo "   Size: $(wc -c < method2_base64.txt) bytes"
-          echo "   Lines: $(wc -l < method2_base64.txt)"
-          echo "   MD5: $(md5sum method2_base64.txt | cut -d' ' -f1)"
-
-          # Method 3: Set specific timestamps to match
-          echo "   Method 3: Fixed timestamps + base64 -w 0"
-          # Reset timestamps to a fixed date
-          find dist/ -exec touch -t 202309220000 {} \;
-          zip -r temp_fixed.zip dist/
-          base64 -w 0 temp_fixed.zip > method3_base64.txt
-          echo "   Size: $(wc -c < method3_base64.txt) bytes"
-          echo "   Lines: $(wc -l < method3_base64.txt)"
-          echo "   MD5: $(md5sum method3_base64.txt | cut -d' ' -f1)"
-
-          # Method 4: Pipe with base64 -w 0
-          echo "   Method 4: zip pipe | base64 -w 0"
-          zip -r - dist/ | base64 -w 0 > method4_base64.txt
-          echo "   Size: $(wc -c < method4_base64.txt) bytes"
-          echo "   Lines: $(wc -l < method4_base64.txt)"
-          echo "   MD5: $(md5sum method4_base64.txt | cut -d' ' -f1)"
-
-          echo ""
-          echo "4. Comparing with reference:"
-          echo "Reference MD5: $(md5sum reference_base64.txt | cut -d' ' -f1)"
-          for method in method1 method2 method3 method4; do
-            ref_md5=$(md5sum reference_base64.txt | cut -d' ' -f1)
-            method_md5=$(md5sum ${method}_base64.txt | cut -d' ' -f1)
-            if [ "$ref_md5" = "$method_md5" ]; then
-              echo "✅ $method matches reference!"
-              cp ${method}_base64.txt extension_base64.txt
-            else
-              echo "❌ $method differs from reference"
-              echo "   First 50 chars: $(head -c 50 ${method}_base64.txt)"
-            fi
-          done
-
-          # If no method matched, use the reference
-          if [ ! -f extension_base64.txt ]; then
-            echo "⚠️  No method matched - using reference base64"
-            cp reference_base64.txt extension_base64.txt
-          fi
-
-          echo ""
-          echo "Final extension_base64.txt info:"
-          echo "Size: $(wc -c < extension_base64.txt) bytes"
-          echo "First 100 chars: $(head -c 100 extension_base64.txt)"
-          echo "=== END DEBUGGING ==="
 
       # Download auth response artifact before extracting token
       - name: Download auth response artifact
