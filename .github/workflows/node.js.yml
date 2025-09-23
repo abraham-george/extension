@@ -26,6 +26,27 @@ jobs:
         run: |
           export TZ=UTC
           export LC_ALL=C
+
+          # Dynamically detect extension name from dist folder
+          EXTENSION_NAME=$(ls dist/ | head -1)
+          echo "Detected extension name: $EXTENSION_NAME"
+
+          # Determine environment (dev for non-main branches, prod for main)
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ENVIRONMENT="prod"
+          else
+            ENVIRONMENT="dev"
+          fi
+
+          # Create versioned extension name with run number
+          VERSIONED_NAME="${EXTENSION_NAME}_${ENVIRONMENT}_v${{ github.run_number }}"
+          echo "Versioned extension name: $VERSIONED_NAME"
+
+          # Export variables for use in subsequent steps
+          echo "EXTENSION_NAME=$EXTENSION_NAME" >> $GITHUB_ENV
+          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+          echo "VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+
           find dist/ -type f -exec touch -t 202301010000 {} \;
           zip -rX --compression-method store --quiet extension.zip dist/
           base64 -w 0 extension.zip > extension_base64.txt
@@ -110,20 +131,23 @@ jobs:
           USERSESSION=$(cat usersession.txt)
           echo "Package content length: ${#PACKAGE_CONTENT}"
           echo "USERSESSION: $USERSESSION"
+          echo "Using extension name: $EXTENSION_NAME"
+          echo "Using versioned name: $VERSIONED_NAME"
+          echo "Environment: $ENVIRONMENT"
 
-          # Create JSON payload
+          # Create JSON payload with dynamic extension name and versioning
           JSON_PAYLOAD='{
             "name": "ExtensionCustomImport",
             "packageContent": "'"$PACKAGE_CONTENT"'",
             "importType": "CustomImport",
             "attributes": {
               "customImportAttributes": {
-                "itemName": "SampleExtensionName2",
+                "itemName": "'"$VERSIONED_NAME"'",
                 "itemType": "BrowserExtension",
                 "extensionAttributes": {
                   "extensionType": "Console",
-                  "extensionInitFile": "dist/ciExtension/index.html",
-                  "notes": "This is a test comment"
+                  "extensionInitFile": "dist/'"$EXTENSION_NAME"'/index.html",
+                  "notes": "Auto-generated '"$ENVIRONMENT"' build v${{ github.run_number }} from branch ${{ github.ref_name }}"
                 }
               }
             }
